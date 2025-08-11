@@ -233,7 +233,7 @@ export function LazorKitWalletProvider({ children }: { children: React.ReactNode
       setError(error)
       throw error
     }
-  }, [wallet])
+    }, [wallet])
 
   // Memoize the context value to prevent unnecessary re-renders
   const value = useMemo(() => ({

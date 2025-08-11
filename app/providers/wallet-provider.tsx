@@ -13,7 +13,7 @@ import { PhantomWalletAdapter } from "@solana/wallet-adapter-wallets"
 import { TxnSettingsProvider } from "@/components/ui/murphy/txn-settings"
 import { ClientLazorKitProvider } from "./client-lazorkit-provider"
 import { LazorKitWalletProvider } from "./lazorkit-wallet-context"
-import { useToast } from "@/hook/use-toast"
+import { AnchorProviderProvider } from "./anchor-provider"
 
 import "@solana/wallet-adapter-react-ui/styles.css"
 
@@ -68,7 +68,6 @@ export const WalletProvider = ({ children, ...props }: WalletProviderProps) => {
   const [currentEndpointIndex, setCurrentEndpointIndex] = useState(0)
   const [isOpen, setIsOpen] = useState(false)
   const [connectionError, setConnectionError] = useState<string | null>(null)
-  const { toast } = useToast()
   const [walletType, setWalletType] = useState<'standard' | 'lazorkit'>(() => {
     if (typeof window !== 'undefined') {
       const savedType = localStorage.getItem('walletType')
@@ -182,11 +181,18 @@ export const WalletProvider = ({ children, ...props }: WalletProviderProps) => {
           onError={(error: Error) => {
             console.error('Wallet error:', error)
             
-            // Set user-friendly error message
             let errorMessage = 'Connection failed. Please try again.'
             let toastType: 'default' | 'destructive' | 'success' = 'destructive'
             
-            if (error.message.includes('User rejected')) {
+            if (error.message.includes('This address is not connected')) {
+              errorMessage = 'Wallet connection expired. Please reconnect manually.'
+              toastType = 'default'
+              // Optionally clear stale connection state
+              if (typeof window !== 'undefined') {
+                localStorage.removeItem('walletName')
+                localStorage.removeItem('walletAdapterName')
+              }
+            } else if (error.message.includes('User rejected')) {
               errorMessage = 'Connection rejected by user.'
               toastType = 'default'
             } else if (error.message.includes('timeout')) {
@@ -197,12 +203,6 @@ export const WalletProvider = ({ children, ...props }: WalletProviderProps) => {
             }
             
             setConnectionError(errorMessage)
-            toast({
-              title: 'Wallet Connection',
-              description: errorMessage,
-              type: toastType,
-              duration: 5000
-            })
 
             // Attempt to switch endpoint on connection errors
             if (error.message.includes('connection') || error.message.includes('network')) {
@@ -213,7 +213,9 @@ export const WalletProvider = ({ children, ...props }: WalletProviderProps) => {
           <WalletModalProvider>
             <ClientLazorKitProvider>
               <LazorKitWalletProvider>
-                <TxnSettingsProvider>{children}</TxnSettingsProvider>
+                <AnchorProviderProvider>
+                  <TxnSettingsProvider>{children}</TxnSettingsProvider>
+                </AnchorProviderProvider>
               </LazorKitWalletProvider>
             </ClientLazorKitProvider>
           </WalletModalProvider>

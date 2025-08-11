@@ -1,6 +1,7 @@
 'use client';
 
 import { ConnectWalletButton } from "@/components/ui/murphy/connect-wallet-button";
+import { NetworkToggle } from "./network-toggle";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -35,7 +36,8 @@ export function Navbar() {
             </Link>
           ))}
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-4">
+          <NetworkToggle />
           <ConnectWalletButton />
         </div>
       </div>

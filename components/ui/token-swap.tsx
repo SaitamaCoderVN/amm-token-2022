@@ -9,9 +9,8 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowDownUp, Settings, RefreshCw, Loader2 } from 'lucide-react'
-import { useToast } from '@/hook/use-toast'
 import { ConnectWalletButton } from '@/components/ui/murphy/connect-wallet-button'
-
+import { toast } from "sonner"
 // Token definitions for Solana
 type TokenSymbol = 'SOL' | 'USDC'
 
@@ -19,7 +18,6 @@ export default function MoveTokenSwap() {
   const { connection } = useConnection()
   const { publicKey } = useWallet()
   const { isConnected: isLazorKitConnected, smartWalletPubkey } = useLazorKitWalletContext()
-  const { toast } = useToast()
   
   const [fromToken, setFromToken] = useState<TokenSymbol>('SOL')
   const [toToken, setToToken] = useState<TokenSymbol>('USDC')
@@ -71,29 +69,21 @@ export default function MoveTokenSwap() {
         // Handle specific RPC authentication errors
         if (error instanceof Error) {
           if (error.message.includes('401') || error.message.includes('Must be authenticated')) {
-            toast({
-              title: 'RPC Authentication Error',
+            toast.error('RPC Authentication Error', {
               description: 'The RPC endpoint requires authentication. Please check your RPC configuration.',
-              type: 'destructive'
-            })
+            })    
           } else if (error.message.includes('429') || error.message.includes('rate limit')) {
-            toast({
-              title: 'Rate Limit Exceeded',
+            toast.error('Rate Limit Exceeded', {
               description: 'Too many requests to the RPC endpoint. Please try again later.',
-              type: 'destructive'
             })
           } else {
-            toast({
-              title: 'Error',
+            toast.error('Error', {
               description: 'Failed to fetch token balances. Please try again.',
-              type: 'destructive'
             })
           }
         } else {
-          toast({
-            title: 'Error',
+          toast.error('Error', {
             description: 'Failed to fetch token balances',
-            type: 'destructive'
           })
         }
         
@@ -143,10 +133,8 @@ export default function MoveTokenSwap() {
       
     } catch (error) {
       console.error('Error calculating swap details:', error)
-      toast({
-        title: 'Error',
+      toast.error('Error', {
         description: 'Failed to calculate swap details',
-        type: 'destructive'
       })
     } finally {
       setIsFetchingPrice(false)
@@ -161,28 +149,22 @@ export default function MoveTokenSwap() {
   // Handle swap execution
   const handleSwap = async () => {
     if (!isConnected || !currentWallet) {
-      toast({
-        title: 'Wallet Required',
+      toast.error('Wallet Required', {
         description: 'Please connect your wallet to swap tokens',
-        type: 'destructive'
       })
       return
     }
 
     if (!fromAmount || parseFloat(fromAmount) <= 0) {
-      toast({
-        title: 'Invalid Amount',
+      toast.error('Invalid Amount', {
         description: 'Please enter a valid amount to swap',
-        type: 'destructive'
       })
       return
     }
 
     if (parseFloat(fromAmount) > balances[fromToken]) {
-      toast({
-        title: 'Insufficient Balance',
+      toast.error('Insufficient Balance', {
         description: `You don't have enough ${fromToken} to complete this swap`,
-        type: 'destructive'
       })
       return
     }
@@ -195,10 +177,8 @@ export default function MoveTokenSwap() {
       // Mock swap transaction
       await new Promise(resolve => setTimeout(resolve, 2000)) // Simulate transaction
       
-      toast({
-        title: 'Swap Successful',
+      toast.success('Swap Successful', {
         description: `Successfully swapped ${fromAmount} ${fromToken} for ${toAmount} ${toToken}`,
-        type: 'success'
       })
       
       // Reset form
@@ -210,10 +190,8 @@ export default function MoveTokenSwap() {
       
     } catch (error) {
       console.error('Swap error:', error)
-      toast({
-        title: 'Swap Failed',
+      toast.error('Swap Failed', {
         description: error instanceof Error ? error.message : 'Failed to execute swap',
-        type: 'destructive'
       })
     } finally {
       setIsLoading(false)

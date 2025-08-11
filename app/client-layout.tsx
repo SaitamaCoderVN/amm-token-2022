@@ -1,7 +1,7 @@
 'use client';
 
 import { BaseLayout } from "./components/layout/BaseLayout";
-import { ToastContainer } from "./providers/toast-provider";
+import { Toaster } from "@/components/ui/sonner";
 import { useEffect, useState } from "react";
 import { WalletProvider } from "./providers/wallet-provider";
 import { ClusterProvider } from "./providers/cluster-provider";
@@ -22,11 +22,11 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     <ClusterProvider>
       <WalletProvider
         network={WalletAdapterNetwork.Devnet}
-        autoConnect={true}
+        autoConnect={false}
       >
         <BaseLayout>
           {children}
-          <ToastContainer />
+          <Toaster />
         </BaseLayout>
       </WalletProvider>
     </ClusterProvider>

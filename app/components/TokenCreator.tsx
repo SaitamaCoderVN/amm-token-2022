@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,22 @@ import {
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Keypair,
+  SystemProgram,
+  Transaction,
+} from "@solana/web3.js";
+import {
+  TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
+  getAssociatedTokenAddressSync,
+  createAssociatedTokenAccountInstruction,
+  createInitializeMint2Instruction,
+  createMintToInstruction,
+  getMintLen,
+} from "@solana/spl-token";
+
+// Top-level transaction construction removed. Logic is now inside onSubmit.
 
 const formSchema = z.object({
   name: z.string().min(1, "Name is required").max(32, "Name must be 32 characters or less"),
@@ -30,6 +46,7 @@ type FormData = z.infer<typeof formSchema>;
 
 export function TokenCreator() {
   const { publicKey, signTransaction } = useWallet();
+  const { connection } = useConnection();
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -50,7 +67,89 @@ export function TokenCreator() {
 
     try {
       console.log("Creating token with data:", data);
-      // Token creation logic will go here
+
+      // Determine program ID based on selected token type
+      const programId = data.tokenType === "token2022" ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID;
+
+      // 1) Create the mint account keypair (we'll partially sign with this)
+      const mintKeypair = Keypair.generate();
+
+      // 2) Calculate required rent for the mint account
+      const mintSpace = getMintLen([]);
+      const rentLamports = await connection.getMinimumBalanceForRentExemption(mintSpace);
+
+      // 3) Build instructions
+      const createMintAccountIx = SystemProgram.createAccount({
+        fromPubkey: publicKey,
+        newAccountPubkey: mintKeypair.publicKey,
+        lamports: rentLamports,
+        space: mintSpace,
+        programId,
+      });
+
+      const initializeMintIx = createInitializeMint2Instruction(
+        mintKeypair.publicKey,
+        data.decimals,
+        publicKey,
+        null,
+        programId,
+      );
+
+      const instructions = [createMintAccountIx, initializeMintIx];
+
+      // 4) Optionally create ATA and mint initial supply
+      if (data.initialSupply > 0) {
+        const associatedTokenAddress = getAssociatedTokenAddressSync(
+          mintKeypair.publicKey,
+          publicKey,
+          false,
+          programId,
+        );
+
+        const createAtaIx = createAssociatedTokenAccountInstruction(
+          publicKey, // payer
+          associatedTokenAddress,
+          publicKey, // owner
+          mintKeypair.publicKey,
+          programId,
+        );
+
+        // Convert initial supply to base units: amount * 10^decimals using BigInt
+        const decimalsPow = BigInt(10) ** BigInt(data.decimals);
+        const amountInBaseUnits = BigInt(Math.floor(data.initialSupply)) * decimalsPow;
+
+        const mintToIx = createMintToInstruction(
+          mintKeypair.publicKey,
+          associatedTokenAddress,
+          publicKey,
+          amountInBaseUnits,
+          [],
+          programId,
+        );
+
+        instructions.push(createAtaIx, mintToIx);
+      }
+
+      // 5) Assemble and sign transaction (partial sign with mint, then wallet signs)
+      const latestBlockhash = await connection.getLatestBlockhash();
+      const tx = new Transaction({
+        feePayer: publicKey,
+        blockhash: latestBlockhash.blockhash,
+        lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+      }).add(...instructions);
+
+      // Partially sign with the mint keypair (required signer for account creation)
+      tx.partialSign(mintKeypair);
+
+      // Let the connected wallet sign (adds wallet signature)
+      const walletSignedTx = await signTransaction(tx);
+
+      // 6) Send and confirm
+      const sig = await connection.sendRawTransaction(walletSignedTx.serialize());
+      await connection.confirmTransaction({ signature: sig, ...latestBlockhash }, "confirmed");
+
+      console.log("Mint Address:", mintKeypair.publicKey.toBase58());
+      console.log("Transaction Signature:", sig);
     } catch (error) {
       console.error("Error creating token:", error);
     }
